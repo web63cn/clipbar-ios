@@ -17,8 +17,12 @@ on:
   push:
     branches: [ main, master, ios ]
     paths:
-      - 'ClipBar-iOS/**'
+      - '**/*.swift'
+      - 'ClipBar.xcodeproj/**'
       - '.github/workflows/ios-build.yml'
+      - 'build.sh'
+      - 'gen_xcodeproj.py'
+      - 'verify_pbxproj.py'
 
 jobs:
   build:
