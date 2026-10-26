@@ -45,6 +45,11 @@ final class KeyboardController: UIInputViewController {
             },
             onDelete: { [weak self] fp in
                 self?.shared.enqueueCapture("__delete__:\(fp)")
+            },
+            onNextKeyboard: { [weak self] in
+                // 切换到下一个键盘必须在 UIInputViewController 上调用
+                // （SwiftUI 的 View 上下文里没有这个方法）
+                self?.advanceToNextInputMode()
             }
         )
         let host = UIHostingController(rootView: root)
@@ -83,6 +88,7 @@ struct KeyboardRootView: View {
     let onSave: (String) -> Void
     let onRefresh: () -> Void
     let onDelete: (String) -> Void
+    let onNextKeyboard: () -> Void
 
     @State private var mode: Mode = .history
     @State private var currentItems: [ClipItem] = []
@@ -131,8 +137,7 @@ struct KeyboardRootView: View {
             .buttonStyle(.bordered)
 
             Button {
-                // 切换键盘
-                advanceToNextInputMode()
+                onNextKeyboard()
             } label: {
                 Image(systemName: "globe").font(.caption)
             }
