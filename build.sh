@@ -40,6 +40,8 @@ echo "▸ 编译（无签名）…"
 # ⚠️ 不要写成 `xcodebuild ... | tail -20` ——
 #    管道的退出码是 tail 的，xcodebuild 失败也会被当成成功，
 #    结果产出一个空 IPA。必须用 PIPESTATUS 取真实退出码。
+#
+# 错误摘要单独走 >&2（不经过 tail），否则会被截掉。
 set -o pipefail
 xcodebuild \
     -project ClipBar.xcodeproj \
@@ -51,16 +53,22 @@ xcodebuild \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGNING_ALLOWED=NO \
     ENABLE_BITCODE=NO \
-    build 2>&1 | tee "$OUT/build.log" | tail -40
-BUILD_RC=${PIPESTATUS[0]}
+    build > "$OUT/build.log" 2>&1
+BUILD_RC=$?
 set +o pipefail
 
 if [ "$BUILD_RC" != "0" ]; then
-    echo ""
-    echo "❌ 编译失败（xcodebuild 退出码 $BUILD_RC），错误摘要："
-    grep -E "error:" "$OUT/build.log" | head -20 || true
+    echo "" >&2
+    echo "❌ 编译失败（xcodebuild 退出码 $BUILD_RC）" >&2
+    echo "---- 错误摘要 ----" >&2
+    grep -E "error:" "$OUT/build.log" | head -25 >&2
+    echo "---- 失败步骤 ----" >&2
+    grep -E "The following build commands failed|^\s+[A-Z][a-zA-Z]+ .*failed" "$OUT/build.log" | head -10 >&2
     exit 1
 fi
+
+# 成功时也留个尾巴，方便确认编了什么
+tail -3 "$OUT/build.log"
 
 # ---------- 打包 IPA ----------
 APP="$OUT/DerivedData/Build/Products/Release-iphoneos/ClipBar.app"

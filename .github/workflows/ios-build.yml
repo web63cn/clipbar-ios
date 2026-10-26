@@ -68,3 +68,12 @@ jobs:
           path: ${{ steps.locate.outputs.dir }}/build/ClipBar-unsigned.ipa
           retention-days: 30
           if-no-files-found: error
+
+      - name: 上传编译日志（排查用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ steps.locate.outputs.dir }}/build/build.log
+          retention-days: 7
+          if-no-files-found: ignore
