@@ -22,7 +22,7 @@ defined |= set(re.findall(r'^\t\t([0-9A-F]{24}) /\*.*?\*/ = \{', s, re.M))
 bf = section('PBXBuildFile')
 # buildFile 段里出现的所有 ID（定义处）
 bf_ids = {}
-for m in re.finditer(r'([0-9A-F]{24}) /\* (.+?) in ([^ ]+) \*/', bf):
+for m in re.finditer(r'([0-9A-F]{24}) /\* (.+?) in (.+?) \*/ = \{isa = PBXBuildFile;', bf):
     bf_ids[m.group(1)] = (m.group(2), m.group(3))
 
 # FileReference 段
@@ -35,9 +35,9 @@ for m in re.finditer(r'fileRef = ([0-9A-F]{24});', bf):
         problems.append(f"fileRef 悬空: {m.group(1)}")
 
 # 2. phase → buildFile
-# 只在 phase 段里找引用（定义处不算）
-phase_text = section('PBXSourcesBuildPhase') + section('PBXResourcesBuildPhase') \
-    + section('PBXCopyFilesBuildPhase')
+# 只在 phase 段里找引用（PBXBuildFile 段里的定义行不算）
+phase_text = (section('PBXSourcesBuildPhase') + section('PBXResourcesBuildPhase')
+              + section('PBXCopyFilesBuildPhase'))
 for bid, name in re.findall(r'([0-9A-F]{24}) /\* (.+?) in (?:Sources|Resources|Embed Foundation Extensions) \*/', phase_text):
     if bid not in bf_ids:
         problems.append(f"phase 引用悬空: {name}")
@@ -98,6 +98,30 @@ for m in re.finditer(r'([0-9A-F]{24}) /\* ([^*]+) \*/ = \{isa = PBXFileReference
     disk = pm.group(1)
     if not os.path.exists(disk):
         problems.append(f"fileRef 路径错误: {fname} → 磁盘上找不到 {disk}")
+
+# 9. 关键：每种 build phase 都必须存在，且被 target 引用
+#    （少一段 → 扩展不嵌入 / 源码不编译，但 Xcode 不一定报错）
+phase_types = {
+    'PBXSourcesBuildPhase': 2,      # app + kb
+    'PBXResourcesBuildPhase': 2,
+    'PBXFrameworksBuildPhase': 2,
+    'PBXCopyFilesBuildPhase': 1,     # 嵌入 appex
+}
+for ptype, expect in phase_types.items():
+    cnt = len(re.findall(r'isa = ' + ptype + ';', s))
+    if cnt != expect:
+        problems.append(f"{ptype} 只有 {cnt} 个（期望 {expect}）")
+
+# buildPhases 里引用的 phase 必须真实存在
+for lst in re.findall(r'buildPhases = \((.*?)\);', s, re.S):
+    for bid in re.findall(r'([0-9A-F]{24})', lst):
+        if bid not in defined:
+            problems.append(f"buildPhases 引用悬空: {bid}")
+
+# 扩展必须被嵌到主 app
+if 'Embed Foundation Extensions' in s:
+    if 'dstSubfolderSpec = 13' not in s:
+        problems.append("嵌入 phase 缺 dstSubfolderSpec = 13（扩展不会进 PlugIns/）")
 
 print(f"对象总数 {len(defined)}  BuildFile {len(bf_ids)}  FileReference {len(file_ids)}")
 if problems:
