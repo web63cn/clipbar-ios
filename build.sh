@@ -37,6 +37,10 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 
 echo "▸ 编译（无签名）…"
+# ⚠️ 不要写成 `xcodebuild ... | tail -20` ——
+#    管道的退出码是 tail 的，xcodebuild 失败也会被当成成功，
+#    结果产出一个空 IPA。必须用 PIPESTATUS 取真实退出码。
+set -o pipefail
 xcodebuild \
     -project ClipBar.xcodeproj \
     -scheme ClipBar \
@@ -47,7 +51,16 @@ xcodebuild \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGNING_ALLOWED=NO \
     ENABLE_BITCODE=NO \
-    build | tail -20
+    build 2>&1 | tee "$OUT/build.log" | tail -40
+BUILD_RC=${PIPESTATUS[0]}
+set +o pipefail
+
+if [ "$BUILD_RC" != "0" ]; then
+    echo ""
+    echo "❌ 编译失败（xcodebuild 退出码 $BUILD_RC），错误摘要："
+    grep -E "error:" "$OUT/build.log" | head -20 || true
+    exit 1
+fi
 
 # ---------- 打包 IPA ----------
 APP="$OUT/DerivedData/Build/Products/Release-iphoneos/ClipBar.app"
@@ -73,9 +86,26 @@ zip -qry ClipBar-unsigned.ipa Payload
 cd ..
 
 IPA="$OUT/ClipBar-unsigned.ipa"
+
+# ---------- 验证产物 ----------
+# 空 IPA（只有空目录）是最坑的失败模式：build.sh 报成功，
+# 但装到手机上是个空壳。下载后才发现。
+APP_COUNT=$(unzip -l "$IPA" | grep -c "Payload/ClipBar.app/" || true)
+if [ "$APP_COUNT" -lt 3 ]; then
+    echo "❌ IPA 里没有 App 内容（$APP_COUNT 个文件）—— 编译没真正成功"
+    exit 1
+fi
+if ! unzip -l "$IPA" | grep -q "ClipBarKeyboard.appex"; then
+    echo "⚠️  IPA 里没有键盘扩展"
+fi
+if ! unzip -l "$IPA" | grep -q "ClipBar.app/ClipBar$"; then
+    echo "❌ IPA 里没有可执行文件"
+    exit 1
+fi
+
 SIZE=$(du -h "$IPA" | cut -f1)
 echo ""
-echo "✅ 完成：$IPA（$SIZE）"
+echo "✅ 完成：$IPA（$SIZE，$APP_COUNT 个文件）"
 echo ""
 echo "下一步："
 echo "  1. 下载 Sideloadly：https://sideloadly.io"

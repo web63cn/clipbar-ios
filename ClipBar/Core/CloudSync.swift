@@ -73,7 +73,7 @@ final class CloudSync: ObservableObject {
     /// 设备密钥（鉴权用，各设备独立）
     private var deviceKey: Data {
         if let k = loadKey(account: "device") { return k }
-        let k = AES.randomKey()
+        let k = ClipAES.randomKey()
         saveKey(k, account: "device")
         return k
     }
@@ -187,13 +187,13 @@ final class CloudSync: ObservableObject {
         if let pvEnc = dict["previewEnc"] as? String,
            let blob = Data(base64Encoded: pvEnc),
            let key = groupKey,
-           let plain = AES.decrypt(blob, key: key, aad: AES.aad("pv", fp)) {
+           let plain = ClipAES.decrypt(blob, key: key, aad: ClipAES.aad("pv", fp)) {
             preview = String(data: plain, encoding: .utf8) ?? ""
         }
         if let bdEnc = dict["bodyEnc"] as? String,
            let blob = Data(base64Encoded: bdEnc),
            let key = groupKey,
-           let plain = AES.decrypt(blob, key: key, aad: AES.aad("bd", fp)) {
+           let plain = ClipAES.decrypt(blob, key: key, aad: ClipAES.aad("bd", fp)) {
             if let obj = try? JSONSerialization.jsonObject(with: plain) as? [String: Any] {
                 text = obj["text"] as? String
             }
@@ -211,12 +211,12 @@ final class CloudSync: ObservableObject {
         for item in store.items {
             let fp = item.fingerprint
             let pv = Data(item.preview.utf8)
-            guard let pvEnc = AES.encrypt(pv, key: key, aad: AES.aad("pv", fp)) else { continue }
+            guard let pvEnc = ClipAES.encrypt(pv, key: key, aad: ClipAES.aad("pv", fp)) else { continue }
             var body: [String: Any] = ["text": item.text ?? ""]
             if let uti = item.uti { body["uti"] = uti }
             let bodyJson = try? JSONSerialization.data(withJSONObject: body)
             guard let bodyJson,
-                  let bdEnc = AES.encrypt(bodyJson, key: key, aad: AES.aad("bd", fp)) else { continue }
+                  let bdEnc = ClipAES.encrypt(bodyJson, key: key, aad: ClipAES.aad("bd", fp)) else { continue }
             out.append([
                 "fp": fp,
                 "kind": item.kind.rawValue,

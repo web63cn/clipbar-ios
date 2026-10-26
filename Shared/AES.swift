@@ -11,7 +11,11 @@ import CryptoKit
 ///
 /// AAD（附加认证数据）把密文绑定到内容指纹，
 /// 防止攻击者把一条内容的密文换到另一条上。
-enum AES {
+///
+/// ⚠️ 名字故意不叫 `AES` —— 那会遮蔽 CryptoKit 的 `AES.GCM`，
+///    编译器会把 `AES.GCM.seal` 解析成自己的类型，报
+///    "type 'AES' has no member 'GCM'"。
+enum ClipAES {
 
     static func randomKey() -> Data {
         var bytes = [UInt8](repeating: 0, count: 32)
@@ -24,12 +28,16 @@ enum AES {
         guard key.count == 32 else { return nil }
         do {
             let symmetricKey = SymmetricKey(data: key)
-            let sealed = try AES.GCM.seal(plain, using: symmetricKey, authenticating: aad ?? Data())
+            let sealed = try CryptoKit.AES.GCM.seal(plain, using: symmetricKey,
+                                                  authenticating: aad ?? Data())
             guard let combined = sealed.combined else { return nil }
             // combined = nonce(12) || ciphertext || tag(16)
-            let nonce = combined.prefix(12)
-            let tag = combined.suffix(16)
-            let ct = combined.dropFirst(12).dropLast(16)
+            // 桌面端布局 = nonce(12) || tag(16) || ciphertext → 这里重排
+            // 注意要显式转成 Data：prefix/suffix 返回的是 SubSequence，
+            // 直接相加会报类型不匹配。
+            let nonce = Data(combined.prefix(12))
+            let tag = Data(combined.suffix(16))
+            let ct = Data(combined.dropFirst(12).dropLast(16))
             return nonce + tag + ct
         } catch {
             return nil
@@ -41,13 +49,15 @@ enum AES {
         guard key.count == 32, blob.count > 28 else { return nil }
         do {
             let symmetricKey = SymmetricKey(data: key)
-            let nonce = blob.prefix(12)
-            let tag = blob.subdata(in: 12..<28)
-            let ct = blob.subdata(in: 28..<blob.count)
-            let box = try AES.GCM.SealedBox(nonce: AES.GCM.Nonce(data: nonce),
-                                             ciphertext: ct,
-                                             tag: tag)
-            return try AES.GCM.open(box, using: symmetricKey, authenticating: aad ?? Data())
+            let nonce = Data(blob.prefix(12))
+            let tag = Data(blob.subdata(in: 12..<28))
+            let ct = Data(blob.subdata(in: 28..<blob.count))
+            let box = try CryptoKit.AES.GCM.SealedBox(
+                nonce: CryptoKit.AES.GCM.Nonce(data: nonce),
+                ciphertext: ct,
+                tag: tag)
+            return try CryptoKit.AES.GCM.open(box, using: symmetricKey,
+                                              authenticating: aad ?? Data())
         } catch {
             return nil
         }

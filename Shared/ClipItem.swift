@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// 剪贴板条目的内容种类（与桌面端 CBKind 一致，值不能改）
 enum ClipKind: Int, Codable {
