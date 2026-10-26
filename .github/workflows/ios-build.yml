@@ -18,7 +18,9 @@ on:
     branches: [ main, master, ios ]
     paths:
       - '**/*.swift'
-      - 'ClipBar.xcodeproj/**'
+      - '**/*.pbxproj'
+      - '**/*.plist'
+      - '**/*.entitlements'
       - '.github/workflows/ios-build.yml'
       - 'build.sh'
       - 'gen_xcodeproj.py'
@@ -33,15 +35,29 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      # 工程可能在仓库根目录，也可能在 ClipBar-iOS/ 子目录下。
+      # 统一探测一次，后续步骤都用探测到的路径。
+      - name: 定位工程目录
+        id: locate
+        run: |
+          if [ -f "ClipBar.xcodeproj/project.pbxproj" ]; then
+            echo "dir=." >> $GITHUB_OUTPUT
+          elif [ -f "ClipBar-iOS/ClipBar.xcodeproj/project.pbxproj" ]; then
+            echo "dir=ClipBar-iOS" >> $GITHUB_OUTPUT
+          else
+            echo "找不到 ClipBar.xcodeproj"; exit 1
+          fi
+          echo "工程目录: ${{ steps.locate.outputs.dir }}"
+
       - name: 校验工程文件
         run: |
-          cd ClipBar-iOS
+          cd "${{ steps.locate.outputs.dir }}"
           python3 verify_pbxproj.py
           plutil -lint ClipBar.xcodeproj/project.pbxproj
 
       - name: 编译（无签名）
         run: |
-          cd ClipBar-iOS
+          cd "${{ steps.locate.outputs.dir }}"
           chmod +x build.sh
           ./build.sh
 
@@ -49,5 +65,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: clipbar-ipa
-          path: ClipBar-iOS/build/ClipBar-unsigned.ipa
+          path: ${{ steps.locate.outputs.dir }}/build/ClipBar-unsigned.ipa
           retention-days: 30
+          if-no-files-found: error
