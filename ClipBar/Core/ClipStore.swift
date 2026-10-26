@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// 本地历史存储。
 ///

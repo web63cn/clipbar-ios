@@ -81,8 +81,10 @@ struct TextToolsView: View {
                 }
             }
             .navigationTitle("文本工具")
-            .onChange(of: input) { _, _ in run() }
-            .onChange(of: selectedTool) { _, _ in run() }
+            // ⚠️ onChange(of:initial:) 两参数版本要 iOS 17+。
+            //    iOS 16 只有 onChange(of:perform:)（单参数）。
+            .onChange(of: input) { _ in run() }
+            .onChange(of: selectedTool) { _ in run() }
         }
     }
 

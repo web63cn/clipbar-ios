@@ -13,14 +13,23 @@ struct HistoryView: View {
         NavigationStack {
             List {
                 if store.items.isEmpty {
-                    ContentUnavailableView {
-                        Label("还没有记录", systemImage: "tray")
-                    } description: {
+                    // ContentUnavailableView 要 iOS 17+，
+                    // 部署目标是 iOS 16，所以自己画一个空状态
+                    VStack(spacing: 14) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("还没有记录")
+                            .font(.headline)
                         Text("点下面的按钮读取当前剪贴板，或等云端同步下来")
-                    } actions: {
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                         Button("读取剪贴板") { capture() }
                             .buttonStyle(.borderedProminent)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
                 } else {
                     ForEach(store.items) { item in
                         row(item)
