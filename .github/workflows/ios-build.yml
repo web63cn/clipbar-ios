@@ -1,0 +1,49 @@
+name: 构建 iOS IPA
+
+# 本机没装 Xcode 时的编译方案。
+# 推代码上去 → 自动编译 → 在 Artifacts 里下载 unsigned IPA。
+#
+# 公开仓库免费；私有仓库每月 2000 分钟 macOS runner 额度，够个人用。
+#
+# 用法：
+#   1. 把这个目录推到一个 GitHub 仓库
+#   2. 仓库 → Actions → 「构建 iOS IPA」→ Run workflow
+#   3. 编译完在页面底部 Artifacts 里下载 clipbar-ipa
+#
+# 也可以手动触发：Actions 页面 → 选择 workflow → Run workflow
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master, ios ]
+    paths:
+      - 'ClipBar-iOS/**'
+      - '.github/workflows/ios-build.yml'
+
+jobs:
+  build:
+    # macOS runner 才能编译 iOS
+    runs-on: macos-14
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 校验工程文件
+        run: |
+          cd ClipBar-iOS
+          python3 verify_pbxproj.py
+          plutil -lint ClipBar.xcodeproj/project.pbxproj
+
+      - name: 编译（无签名）
+        run: |
+          cd ClipBar-iOS
+          chmod +x build.sh
+          ./build.sh
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipbar-ipa
+          path: ClipBar-iOS/build/ClipBar-unsigned.ipa
+          retention-days: 30
