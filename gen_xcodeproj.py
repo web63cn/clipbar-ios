@@ -166,7 +166,8 @@ def build_groups(ids):
     out.append('\t\t\tisa = PBXGroup;')
     out.append('\t\t\tchildren = (')
     out.append(f'\t\t\t\t{ids["appGroup"]} /* ClipBar */,')
-    out.append(f'\t\t\t\t{ids["kbGroup"]} /* ClipBarKeyboard */,')
+    if not NO_EXTENSION:
+        out.append(f'\t\t\t\t{ids["kbGroup"]} /* ClipBarKeyboard */,')
     out.append(f'\t\t\t\t{ids["sharedGroup"]} /* Shared */,')
     out.append(f'\t\t\t\t{ids["productsGroup"]} /* Products */,')
     out.append('\t\t\t);')
@@ -297,7 +298,7 @@ def build_target(ids, name, target_id, product_id, product_name, product_type,
     out.append(f'\t\t\t\t{uid("phase", phase_prefix)} /* Sources */,')
     out.append(f'\t\t\t\t{uid("phase_f", phase_prefix)} /* Frameworks */,')
     out.append(f'\t\t\t\t{uid("phase_r", phase_prefix)} /* Resources */,')
-    if embed:
+    if embed and not NO_EXTENSION:
         out.append(f'\t\t\t\t{uid("phase_e")} /* Embed Foundation Extensions */,')
     out.append('\t\t\t);')
     out.append('\t\t\tbuildRules = (')
@@ -320,11 +321,13 @@ def build_targets(ids):
     out.append(build_target(ids, "ClipBar", ids["appTarget"], ids["appProduct"],
                             "ClipBar.app", "com.apple.product-type.application",
                             ids["appConfigList"], APP_SOURCES + SHARED_SOURCES,
-                            APP_RESOURCES, "app", dep, embed=True))
-    out.append(build_target(ids, "ClipBarKeyboard", ids["kbTarget"], ids["kbProduct"],
-                            "ClipBarKeyboard.appex", "com.apple.product-type.app-extension",
-                            ids["kbConfigList"], KB_SOURCES + SHARED_SOURCES,
-                            KB_RESOURCES, "kb"))
+                            APP_RESOURCES, "app",
+                            None if NO_EXTENSION else dep, embed=True))
+    if not NO_EXTENSION:
+        out.append(build_target(ids, "ClipBarKeyboard", ids["kbTarget"], ids["kbProduct"],
+                                "ClipBarKeyboard.appex", "com.apple.product-type.app-extension",
+                                ids["kbConfigList"], KB_SOURCES + SHARED_SOURCES,
+                                KB_RESOURCES, "kb"))
 
     out.append("/* Begin PBXTargetDependency section */")
     out.append(f'\t\t{dep} /* PBXTargetDependency */ = {{')
@@ -457,6 +460,14 @@ def build_configs(ids):
     return "\n".join(out)
 
 
+# 生成「无键盘扩展」变体时置 1。
+# 用途：Sideloadly 在 iOS 26 + 免费账号下装键盘扩展有已知的签名崩溃问题
+#      （CODESIGNING / Invalid Page），主 App 本身没问题。
+#      没有扩展时至少云同步 + 历史 + 文本工具能用。
+import os as _os
+NO_EXTENSION = _os.environ.get("CLIPBAR_NO_EXTENSION") == "1"
+
+
 def build_project(ids):
     out = ["// !$*UTF8*$!", "{",
            "\tarchiveVersion = 1;",
@@ -535,7 +546,8 @@ def build_project(ids):
     out.append('\t\t\tprojectRoot = "";')
     out.append('\t\t\ttargets = (')
     out.append(f'\t\t\t\t{ids["appTarget"]} /* ClipBar */,')
-    out.append(f'\t\t\t\t{ids["kbTarget"]} /* ClipBarKeyboard */,')
+    if not NO_EXTENSION:
+        out.append(f'\t\t\t\t{ids["kbTarget"]} /* ClipBarKeyboard */,')
     out.append('\t\t\t);')
     out.append('\t\t};')
     out.append("/* End PBXProject section */")
